@@ -189,10 +189,12 @@ class MainActivity : ComponentActivity() {
                 swipeRefresh.isRefreshing = false
                 progressBar.visibility = View.GONE
 
-                // Deshabilitar pull-to-refresh en la página de bienvenida
-                // para que el usuario pueda hacer scroll sin activar refresh
+                // Deshabilitar pull-to-refresh y ocultar anuncio en la página de bienvenida
                 val currentUrl = url ?: ""
-                swipeRefresh.isEnabled = !currentUrl.contains("/welcome")
+                val isWelcomePage = currentUrl.contains("/welcome")
+                
+                swipeRefresh.isEnabled = !isWelcomePage
+                adView.visibility = if (isWelcomePage) View.GONE else View.VISIBLE
                 
                 // ── Restaurar localStorage desde SharedPreferences ──
                 // Primero obtenemos todas las claves guardadas y las restauramos
