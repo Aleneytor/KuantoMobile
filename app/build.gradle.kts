@@ -11,8 +11,8 @@ android {
         applicationId = "com.aleneytor.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 15
-        versionName = "2.0.0"
+        versionCode = 16
+        versionName = "2.0.1"
     }
 
     signingConfigs {
