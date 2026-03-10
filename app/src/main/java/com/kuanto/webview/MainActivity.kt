@@ -188,7 +188,27 @@ class MainActivity : ComponentActivity() {
                 super.onPageFinished(view, url)
                 swipeRefresh.isRefreshing = false
                 progressBar.visibility = View.GONE
+
+                // Deshabilitar pull-to-refresh en la página de bienvenida
+                // para que el usuario pueda hacer scroll sin activar refresh
+                val currentUrl = url ?: ""
+                swipeRefresh.isEnabled = !currentUrl.contains("/welcome")
                 
+                // ── Restaurar localStorage desde SharedPreferences ──
+                // Primero obtenemos todas las claves guardadas y las restauramos
+                val prefs = getSharedPreferences("kuanto_localstorage", Context.MODE_PRIVATE)
+                val allEntries = prefs.all
+                val restoreJs = StringBuilder()
+                restoreJs.append("(function(){")
+                for ((key, value) in allEntries) {
+                    val escapedKey = key.replace("\\", "\\\\").replace("'", "\\'")
+                    val escapedValue = (value as? String ?: "").replace("\\", "\\\\").replace("'", "\\'")
+                    restoreJs.append("try{localStorage.setItem('$escapedKey','$escapedValue');}catch(e){}")
+                }
+                restoreJs.append("console.log('KuantoBridge: Restored "+allEntries.size+" localStorage entries from native storage');")
+                restoreJs.append("})();")
+                view?.evaluateJavascript(restoreJs.toString(), null)
+
                 val js = """
                     (function() {
                         if (!window.Notification) {
@@ -211,14 +231,33 @@ class MainActivity : ComponentActivity() {
                             };
                         }
 
+                        // ── Interceptar localStorage para persistir en Android ──
                         var originalSetItem = localStorage.setItem;
                         localStorage.setItem = function(key, value) {
+                            // Guardar en almacenamiento nativo de Android
+                            if (window.AndroidBridge) {
+                                try { window.AndroidBridge.saveToStorage(key, String(value)); } catch(e) {}
+                            }
                             if (key === '@app_notifications') {
                                 if (window.AndroidBridge) {
                                     window.AndroidBridge.toggleNotifications(value === 'true' || value === true);
                                 }
                             }
                             return originalSetItem.apply(this, arguments);
+                        };
+                        var originalRemoveItem = localStorage.removeItem;
+                        localStorage.removeItem = function(key) {
+                            if (window.AndroidBridge) {
+                                try { window.AndroidBridge.removeFromStorage(key); } catch(e) {}
+                            }
+                            return originalRemoveItem.apply(this, arguments);
+                        };
+                        var originalClear = localStorage.clear;
+                        localStorage.clear = function() {
+                            if (window.AndroidBridge) {
+                                try { window.AndroidBridge.clearStorage(); } catch(e) {}
+                            }
+                            return originalClear.apply(this, arguments);
                         };
                         // ── Scroll Monitor para Pull-to-Refresh ──
                         // La PWA usa un contenedor interno para scroll,
@@ -485,6 +524,30 @@ class MainActivity : ComponentActivity() {
                     openPlayStore()
                 }
             }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun saveToStorage(key: String, value: String) {
+            val prefs = getSharedPreferences("kuanto_localstorage", Context.MODE_PRIVATE)
+            prefs.edit().putString(key, value).apply()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun getFromStorage(key: String): String? {
+            val prefs = getSharedPreferences("kuanto_localstorage", Context.MODE_PRIVATE)
+            return prefs.getString(key, null)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun removeFromStorage(key: String) {
+            val prefs = getSharedPreferences("kuanto_localstorage", Context.MODE_PRIVATE)
+            prefs.edit().remove(key).apply()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun clearStorage() {
+            val prefs = getSharedPreferences("kuanto_localstorage", Context.MODE_PRIVATE)
+            prefs.edit().clear().apply()
         }
     }
 
